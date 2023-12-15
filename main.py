@@ -3,9 +3,16 @@ import tkinter as tk
 from tkinter import messagebox
 from customtkinter import *
 
+connected = False
+show_login_page = True
+
 def authenticate_user(username, password, cur):
+    global connected, show_login_page
     cur.execute("SELECT * FROM Users WHERE Name=? AND Password=?", (username, password))
     result = cur.fetchone()
+    if result is not None:
+        connected = True
+        show_login_page = False
     return result is not None
 
 def get_employee_status(username, cur):
@@ -14,7 +21,9 @@ def get_employee_status(username, cur):
     return result[0] == 1 if result else False
 
 def show_employee_interface(username, main_window):
-    print("welcome user")
+    print("welcome admin")
+    global connected
+    connected = True
 
 def show_user_interface(username, main_window):
     print("welcome user")
@@ -33,10 +42,8 @@ def login(usernameEntry, passwordEntry, cur, root):
         messagebox.showerror("Error", "Invalid credentials. Please try again.")
 
 def signup(signup_usernameEntry, signup_passwordEntry, cur, conn):
-    # By default, new signups are normal users
     is_employee = 0
 
-    # Check if the username already exists
     new_username = signup_usernameEntry.get()
     cur.execute("SELECT * FROM Users WHERE Name=?", (new_username,))
     existing_user = cur.fetchone()
@@ -44,68 +51,75 @@ def signup(signup_usernameEntry, signup_passwordEntry, cur, conn):
     if existing_user:
         messagebox.showerror("Error", "Username already taken. Please choose another.")
     else:
-        # Insert the new user into the database
         cur.execute("INSERT INTO Users (Name, Password, Employee) VALUES (?, ?, ?)",
                     (new_username, signup_passwordEntry.get(), is_employee))
         conn.commit()
-        print("You've signed up as a user!")
+        messagebox.showinfo("Success", "Successfully signed up to Burger Queen")
 
 def main():
-    # Connecting to the database
-    conn = sqlite3.connect("C:/Users/leona/OneDrive/Skrivebord/IT 2/Utvikling1/burgerqueenprosjekt/DataBases/Foundation.db")
+    conn = sqlite3.connect("DataBases/Foundation.db")
     cur = conn.cursor()
 
-    # APP SETUP
     root = CTk()
     root.geometry("720x680")
     root.minsize(420, 380)
     root.title("BurgerQueen")
+    
+    def LoginPage():
+        global show_login_page
+        if show_login_page:
+            title = CTkLabel(root, text="BURGER QUEEN")
+            title.pack()
 
-    # LOGIN SCREEN
-    title = CTkLabel(root, text="BURGER QUEEN")
-    title.pack()
+            loginTabs = CTkTabview(root, width=720, height=680)
+            loginTabs.pack(padx=20, pady=20)
 
-    loginTabs = CTkTabview(root, width=720, height=680)
-    loginTabs.pack(padx=20, pady=20)
+            loginTabs.add("login")
+            loginTabs.add("sign up")
 
-    loginTabs.add("login")
-    loginTabs.add("sign up")
+            usernameEntry = CTkEntry(loginTabs.tab("login"), placeholder_text="Username. . .", width=150)
+            usernameEntry.place(relx=0.4, rely=0.15)
 
-    # LOGIN
-    usernameEntry = CTkEntry(loginTabs.tab("login"), placeholder_text="Username. . .", width=150)
-    usernameEntry.place(relx=0.4, rely=0.15)
+            passwordEntry = CTkEntry(loginTabs.tab("login"), placeholder_text="Password. . .", show="*", width=150)
+            passwordEntry.place(relx=0.4, rely=0.3)
 
-    passwordEntry = CTkEntry(loginTabs.tab("login"), placeholder_text="Password. . .", show="*", width=150)
-    passwordEntry.place(relx=0.4, rely=0.3)
+            def on_enter_key(event):
+                login(usernameEntry, passwordEntry, cur, root)
 
-    def on_enter_key(event):
-        # This function is called when the Enter key is pressed
-        login(usernameEntry, passwordEntry, cur, root)
+            passwordEntry.bind('<Return>', on_enter_key)
 
-    # Bind the Enter key to the password entry widget
-    passwordEntry.bind('<Return>', on_enter_key)
+            loginButton = CTkButton(loginTabs.tab("login"), text="login", command=lambda: login(usernameEntry, passwordEntry, cur, root))
+            loginButton.place(relx=0.4, rely=0.6)
 
-    loginButton = CTkButton(loginTabs.tab("login"), text="login", command=lambda: login(usernameEntry, passwordEntry, cur, root))
-    loginButton.place(relx=0.4, rely=0.6)
+            signup_usernameEntry = CTkEntry(loginTabs.tab("sign up"), placeholder_text="Create Username. . .", width=150)
+            signup_usernameEntry.place(relx=0.4, rely=0.15)
 
-    # SIGN UP
-    signup_usernameEntry = CTkEntry(loginTabs.tab("sign up"), placeholder_text="Create Username. . .", width=150)
-    signup_usernameEntry.place(relx=0.4, rely=0.15)
+            signup_passwordEntry = CTkEntry(loginTabs.tab("sign up"), placeholder_text="Create Password. . .", show="*", width=150)
+            signup_passwordEntry.place(relx=0.4, rely=0.3)
 
-    signup_passwordEntry = CTkEntry(loginTabs.tab("sign up"), placeholder_text="Create Password. . .", show="*", width=150)
-    signup_passwordEntry.place(relx=0.4, rely=0.3)
+            def on_signup_enter_key(event):
+                signup(signup_usernameEntry, signup_passwordEntry, cur, conn)
 
-    def on_signup_enter_key(event):
-        # This function is called when the Enter key is pressed for signup
-        signup(signup_usernameEntry, signup_passwordEntry, cur, conn)
+            signup_passwordEntry.bind('<Return>', on_signup_enter_key)
 
-    # Bind the Enter key to the password entry widget for signup
-    signup_passwordEntry.bind('<Return>', on_signup_enter_key)
+            signInButton = CTkButton(loginTabs.tab("sign up"), text="sign up", command=lambda: signup(signup_usernameEntry, signup_passwordEntry, cur, conn))
+            signInButton.place(relx=0.4, rely=0.6)
+        else:
+            for widget in root.winfo_children():
+                widget.destroy()
 
-    signInButton = CTkButton(loginTabs.tab("sign up"), text="sign up", command=lambda: signup(signup_usernameEntry, signup_passwordEntry, cur, conn))
-    signInButton.place(relx=0.4, rely=0.6)
+    def execute_login_page():
+        LoginPage()
 
-    # executes the program with GUI
+    def main_loop():
+        execute_login_page()
+        root.after(1000, main_loop)
+
+    main_loop()
+
+    toggle_button = CTkButton(root, text="Toggle Login Page", command=lambda: LoginPage() if not show_login_page else None)
+    toggle_button.pack()
+
     root.mainloop()
 
 if __name__ == "__main__":
