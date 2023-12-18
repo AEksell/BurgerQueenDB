@@ -22,6 +22,7 @@ def get_employee_status(username, cur):
 
 def show_employee_interface(username, main_window):
     global root
+    global OptionTabs
     
     for widget in main_window.winfo_children():
         widget.destroy()
@@ -29,9 +30,13 @@ def show_employee_interface(username, main_window):
     
     title = CTkLabel(root, text="HI ADMIN")
     title.pack()
+    
+    OptionTabs.add("Ingredients")
+    OptionTabs.add("Orders")
 
 def show_user_interface(username, main_window):
     global root
+    global OptionTabs
     
     for widget in main_window.winfo_children():
         widget.destroy()
@@ -44,7 +49,6 @@ def show_user_interface(username, main_window):
     OptionTabs.pack(padx=20, pady=20)
     
     OptionTabs.add("Menu")
-    OptionTabs.add("Ingredients")
     OptionTabs.add("Order")
     
 
