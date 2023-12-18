@@ -36,12 +36,16 @@ def show_user_interface(username, main_window):
     for widget in main_window.winfo_children():
         widget.destroy()
         
-    selectCanvas = CTkCanvas(
+    OptionTabs = CTkTabview(
         root,
-        width = 300,
-        height = 400,
+        width=720,
+        height=680,
     )
-    selectCanvas.place(x=0.5, y=0.5)
+    OptionTabs.pack(padx=20, pady=20)
+    
+    OptionTabs.add("Menu")
+    OptionTabs.add("Ingredients")
+    OptionTabs.add("Order")
     
 
 def login(usernameEntry, passwordEntry, cur, root):
@@ -85,6 +89,10 @@ def main():
     root.geometry("720x680")
     root.minsize(420, 380)
     root.title("BurgerQueen")
+    
+    
+    set_default_color_theme("dark-blue")
+    set_appearance_mode("dark")
     
     def LoginPage():
         global show_login_page
