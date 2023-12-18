@@ -21,12 +21,28 @@ def get_employee_status(username, cur):
     return result[0] == 1 if result else False
 
 def show_employee_interface(username, main_window):
-    print("welcome admin")
-    global connected
-    connected = True
+    global root
+    
+    for widget in main_window.winfo_children():
+        widget.destroy()
+    show_user_interface(username, main_window)
+    
+    title = CTkLabel(root, text="HI ADMIN")
+    title.pack()
 
 def show_user_interface(username, main_window):
-    print("welcome user")
+    global root
+    
+    for widget in main_window.winfo_children():
+        widget.destroy()
+        
+    selectCanvas = CTkCanvas(
+        root,
+        width = 300,
+        height = 400,
+    )
+    selectCanvas.place(x=0.5, y=0.5)
+    
 
 def login(usernameEntry, passwordEntry, cur, root):
     username = usernameEntry.get()
@@ -42,6 +58,7 @@ def login(usernameEntry, passwordEntry, cur, root):
         messagebox.showerror("Error", "Invalid credentials. Please try again.")
 
 def signup(signup_usernameEntry, signup_passwordEntry, cur, conn):
+    global connected, show_login_page
     is_employee = 0
 
     new_username = signup_usernameEntry.get()
@@ -55,8 +72,12 @@ def signup(signup_usernameEntry, signup_passwordEntry, cur, conn):
                     (new_username, signup_passwordEntry.get(), is_employee))
         conn.commit()
         messagebox.showinfo("Success", "Successfully signed up to Burger Queen")
+        connected = True
+        show_login_page = False
+
 
 def main():
+    global root
     conn = sqlite3.connect("DataBases/Foundation.db")
     cur = conn.cursor()
 
@@ -104,9 +125,6 @@ def main():
 
             signInButton = CTkButton(loginTabs.tab("sign up"), text="sign up", command=lambda: signup(signup_usernameEntry, signup_passwordEntry, cur, conn))
             signInButton.place(relx=0.4, rely=0.6)
-        else:
-            for widget in root.winfo_children():
-                widget.destroy()
 
     def execute_login_page():
         LoginPage()
@@ -114,12 +132,13 @@ def main():
     def main_loop():
         execute_login_page()
         root.after(1000, main_loop)
+        
+        
+        
+        
 
+    #OPENS AFTER LOGIN
     main_loop()
-
-    toggle_button = CTkButton(root, text="Toggle Login Page", command=lambda: LoginPage() if not show_login_page else None)
-    toggle_button.pack()
-
     root.mainloop()
 
 if __name__ == "__main__":
