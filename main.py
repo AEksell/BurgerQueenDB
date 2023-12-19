@@ -3,9 +3,13 @@ import tkinter as tk
 from tkinter import messagebox
 from customtkinter import *
 from CTkMessagebox import CTkMessagebox
+from CTkTable import *
+
 
 connected = False
 show_login_page = True
+conn = sqlite3.connect("DataBases/Foundation.db")
+cur = conn.cursor()
 
 def authenticate_user(username, password, cur):
     global connected, show_login_page
@@ -21,20 +25,45 @@ def get_employee_status(username, cur):
     result = cur.fetchone()
     return result[0] == 1 if result else False
 
+def Refresh_Ingredients_data(ingredients_table, ingredients_result):
+    cur.execute("SELECT * FROM Ingredients")
+    ingredients_result = cur.fetchall()
 
+    ingredients_data = [list(row) for row in ingredients_result]
+    print(ingredients_data)
+    ingredients_table.update_values(ingredients_data)
+    
 def show_employee_interface(username, main_window):
     global root
     global OptionTabs
-    
+
     for widget in main_window.winfo_children():
         widget.destroy()
     show_user_interface(username, main_window)
-    
+
     title = CTkLabel(root, text="HI ADMIN")
     title.pack()
-    
+
     OptionTabs.add("Ingredients")
     OptionTabs.add("Orders")
+
+    # Retrieve ingredients data from the database
+    cur.execute("SELECT * FROM Ingredients")
+    ingredients_result = cur.fetchall()
+
+    # Create a list of ingredients data
+    ingredients_data = [list(row) for row in ingredients_result]
+
+    # Create a table under the "Ingredients" tab
+    ingredients_table = CTkTable(OptionTabs.tab("Ingredients"), row=len(ingredients_data), column=len(ingredients_data[0]), values=ingredients_data)
+    ingredients_table.pack(expand=True, fill="both", padx=20, pady=20)
+
+    # Add a "Refresh" button to the "Ingredients" tab
+    refresh_button = CTkButton(OptionTabs.tab("Ingredients"), text="Refresh", command=lambda: Refresh_Ingredients_data(ingredients_table, ingredients_result))
+    refresh_button.pack()
+    
+
+
 
 def show_user_interface(username, main_window):
     global root
@@ -168,7 +197,6 @@ def main():
     def main_loop():
         execute_login_page()
         root.after(1000, main_loop)
-    
 
     #OPENS AFTER LOGIN
     main_loop()
