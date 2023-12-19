@@ -1,6 +1,7 @@
 import sqlite3
 import tkinter as tk
 from tkinter import messagebox
+from tkinter import Scrollbar
 from customtkinter import *
 from CTkMessagebox import CTkMessagebox
 from CTkTable import *
@@ -32,6 +33,13 @@ def Refresh_Ingredients_data(ingredients_table, ingredients_result):
     ingredients_data = [list(row) for row in ingredients_result]
     print(ingredients_data)
     ingredients_table.update_values(ingredients_data)
+
+def OrderStatus(orderlist, orderTable):
+    cur.execute("SELECT * FROM Orders")
+    orderlist = cur.fetchall()
+    
+    orderTable = [list(row) for row in orderlist]
+    print(orderTable)
     
 def show_employee_interface(username, main_window):
     global root
@@ -54,14 +62,74 @@ def show_employee_interface(username, main_window):
     # Create a list of ingredients data
     ingredients_data = [list(row) for row in ingredients_result]
 
-    # Create a table under the "Ingredients" tab
-    ingredients_table = CTkTable(OptionTabs.tab("Ingredients"), row=len(ingredients_data), column=len(ingredients_data[0]), values=ingredients_data)
-    ingredients_table.pack(expand=True, fill="both", padx=20, pady=20)
+    # Create a frame to contain the ingredients table
+    ingredients_frame = CTkFrame(OptionTabs.tab("Ingredients"))
+    ingredients_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
-    # Add a "Refresh" button to the "Ingredients" tab
-    refresh_button = CTkButton(OptionTabs.tab("Ingredients"), text="Refresh", command=lambda: Refresh_Ingredients_data(ingredients_table, ingredients_result))
-    refresh_button.pack()
-    
+    # Create a canvas to simulate a scrollable frame
+    ingredients_canvas = CTkCanvas(ingredients_frame)
+    ingredients_canvas.pack(side="left", fill="both", expand=True)
+
+    # Add a scrollbar for the canvas
+    ingredients_scrollbar = Scrollbar(ingredients_frame, orient="vertical", command=ingredients_canvas.yview)
+    ingredients_scrollbar.pack(side="right", fill="y")
+    ingredients_canvas.configure(yscrollcommand=ingredients_scrollbar.set)
+
+    # Create a frame inside the canvas to hold the ingredients table
+    ingredients_interior = CTkFrame(ingredients_canvas)
+    ingredients_canvas.create_window((0, 0), window=ingredients_interior, anchor="nw")
+
+    # Create the ingredients table inside the frame
+    ingredients_table = CTkTable(
+        ingredients_interior,
+        width = 200,
+        height = 80,
+        row=len(ingredients_data),
+        column=len(ingredients_data[0]),
+        values=ingredients_data,
+        hover_color="#2D419C"
+    )
+    ingredients_table.pack(expand=True, fill="both")
+
+    # Configure the canvas to update scroll region when the table size changes
+    ingredients_interior.update_idletasks()
+    ingredients_canvas.config(scrollregion=ingredients_canvas.bbox("all"))
+
+
+
+    # Retrieve orders data from the database
+    cur.execute("SELECT Orders.OrderID, Users.Name AS CustomerName, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Users ON Orders.CustomerID = Users.UserID JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID;")
+    orderlist = cur.fetchall()
+    orderTable = [list(row) for row in orderlist]
+
+    # Insert column names as the first row in the orderTable
+    column_names = ["Order ID", "Customer Name", "Product", "Finished"]  # Replace with your column names
+    orderTable.insert(0, column_names)
+
+    # Make orders table GUI (SIMILAR TO INGREDIENTS TABLE CREATION)
+    OrdersFrame = CTkFrame(OptionTabs.tab("Orders"))
+    OrdersFrame.pack(expand=True, fill="both", padx=20, pady=20)
+
+    OrdersCanvas = CTkCanvas(OrdersFrame, bg="#212121")
+    OrdersCanvas.pack(side="left", fill="both", expand=True)
+
+    OrdersScrollbar = Scrollbar(OrdersFrame, orient="vertical", command=OrdersCanvas.yview)
+    OrdersScrollbar.pack(side="right", fill="y")
+    OrdersCanvas.configure(yscrollcommand=OrdersScrollbar.set)
+
+    OrdersInterior =  CTkFrame(OrdersCanvas)
+    OrdersCanvas.create_window((0, 0), window=OrdersInterior, anchor="nw")
+
+    OrdersTable = CTkTable(
+        OrdersInterior,
+        width = 150,
+        height = 80,
+        row=len(orderTable),
+        column=len(orderTable[0]),
+        values=orderTable,
+        hover_color="#2D419C"
+    )
+    OrdersTable.pack(expand=True, fill="both")
 
 
 
