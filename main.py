@@ -130,64 +130,91 @@ def show_employee_interface(username, main_window, ):
     )
 
     OrdersTable.pack(expand=True, fill="both")
-        
     def update_produced():
-        buttonlabel = 0
-        try:
-            selected_order_id = selectOrderComplete.get()
-            cur.execute("UPDATE Orders SET Produced = CASE WHEN Produced = 1 THEN 0 ELSE 1 END WHERE OrderID = ?", (selected_order_id,))
+
+            cur.execute("UPDATE Orders SET Produced = CASE WHEN Produced = 1 THEN 0 ELSE 1 END WHERE OrderID = ?", (selectOrderComplete.get(),))
             conn.commit()
-            #print(selected_order_id)
 
             # Refresh the entire table after database update
             cur.execute("SELECT Orders.OrderID, Users.Name AS CustomerName, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Users ON Orders.CustomerID = Users.UserID JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID;")
             orderlist = cur.fetchall()
             orderTable = [list(row) for row in orderlist]
             orderTable.insert(0, ["Order ID", "Customer Name", "Product", "Finished"])
-            ++buttonlabel
+            OrdersTable.update_values(orderTable)
 
-            if buttonlabel < 2:
-                OrderChangeMessage = CTkLabel(OptionTabs.tab("Orders"), text="To see the differences youve made to the database,\n please reOpen the software.", text_color="red", font=('Arial', 10))
-                OrderChangeMessage.place(relx=0.01, rely=0.85)
-       
-            update_order_and_ingredients(selected_order_id)
-        
+            produced_state = check_produced_status(selectOrderComplete.get())
+            update_ingredients(produced_state)
+
+    def check_produced_status(order_id):
+        try:
+            cur.execute("SELECT Produced FROM Orders WHERE OrderID = ?", (order_id,))
+            produced_status = cur.fetchone()  # Fetch the value of Produced column
+
+            if produced_status == 1:
+                produced_variable = True
+            else:
+                produced_variable = False
+
+            return produced_variable
+
         except Exception as e:
             print(f"Error occurred: {e}")
             conn.rollback()
 
-    def update_order_and_ingredients(selected_order_id):
+    def update_ingredients(produced):
+        try:
+            order_id = selectOrderComplete.get()
 
-        # Check if the order is produced
-        cur.execute("SELECT Produced, BurgerID FROM Orders WHERE OrderID = ?", (selected_order_id,))
-        result = cur.fetchone()
+            cur.execute("SELECT BurgerID FROM Orders WHERE OrderID = ?", (order_id,))
+            burger_result = cur.fetchone()
 
-        if result and result[0] == 3:  # Assuming 1 represents 'Produced'
-            burger_id = result[1]
+            if burger_result is not None:
+                burger_id = burger_result[0]
 
-            # Update the order status
-            cur.execute("UPDATE Orders SET Produced = 1 WHERE OrderID = ?", (selected_order_id,))
+                cur.execute("SELECT Ingredients FROM Burgers WHERE BurgerID = ?", (burger_id,))
+                ingredients_result = cur.fetchone()
 
-            # Get the list of ingredient descriptions for the burger
-            cur.execute("SELECT Ingredients FROM Burgers WHERE BurgerID = ?", (burger_id,))
-            ingredients_list = cur.fetchone()
+                if ingredients_result is not None:
+                    ingredients_str = ingredients_result[0]
+                    required_ingredients = [ingredient.strip() for ingredient in ingredients_str.split(',')]
 
-            # Update the quantity for each ingredient in the list
-            if ingredients_list:
-                ingredient_descriptions = ingredients_list[0].split(', ')
-                for ingredient_description in ingredient_descriptions:
-                    cur.execute("UPDATE Ingredients SET Quantity = Quantity - 1 WHERE Ingredient = ?", (ingredient_description,))
+                    print(f"Ingredients found for Order {order_id}: {required_ingredients}")
 
-                # Commit the changes
-                conn.commit()
-                print(f"Order {selected_order_id} produced and ingredients updated.")
+                    # Fetch quantities for ingredients
+                    ingredient_quantities = []
+                    for ingredient in required_ingredients:
+                        cur.execute("SELECT Quantity FROM Ingredients WHERE LOWER(Ingredient) = LOWER(?)", (ingredient,))
+                        quantity_result = cur.fetchone()
+
+                        if quantity_result is not None:
+                            ingredient_quantities.append((ingredient, quantity_result[0]))
+                        else:
+                            print(f"No quantity found for {ingredient}")
+
+                    print(f"Ingredients and quantities found for Order {order_id}: {ingredient_quantities}")
+
+                    # Update quantities based on the 'produced' flag
+                    for ingredient, quantity in ingredient_quantities:
+                        if produced:
+                            updated_quantity = quantity - 1
+                        else:
+                            # Revert the quantity back to its original state
+                            updated_quantity = quantity + 1
+
+                        print(f"Updating {ingredient} from {quantity} to {updated_quantity}")
+                        cur.execute("UPDATE Ingredients SET Quantity = ? WHERE LOWER(Ingredient) = LOWER(?)", (updated_quantity, ingredient,))
+                        print(f"Updated quantity for {ingredient}")
+
+                    conn.commit()
+                    print(f"Order {order_id} {'produced' if produced else 'not produced'} and ingredients updated.")
+                else:
+                    print("No ingredients found for the burger.")
             else:
-                print(f"Unable to retrieve ingredients for BurgerID {burger_id}.")
-        else:
-            print(f"Order {selected_order_id} not produced.")
+                print("No order found for the specified ID.")
 
-
-
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            conn.rollback()
 
     cur.execute("SELECT OrderID FROM Orders")
     selectOrderList = cur.fetchall()
@@ -198,7 +225,7 @@ def show_employee_interface(username, main_window, ):
 
     selectOrderComplete = CTkComboBox(OptionTabs.tab("Orders"), values=orderIDs, state="readonly")
     selectOrderComplete.pack(padx=5, pady=10)
-    
+
     ConfirmOrderChangeButton = CTkButton(OptionTabs.tab("Orders"), text="Declare Order finished/Unfinished", command=update_produced)
     ConfirmOrderChangeButton.pack(padx=5, pady=10)
 
