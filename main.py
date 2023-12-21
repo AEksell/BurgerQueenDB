@@ -40,8 +40,9 @@ def OrderStatus(orderlist, orderTable):
     
     orderTable = [list(row) for row in orderlist]
     print(orderTable)
-    
-def show_employee_interface(username, main_window):
+
+        
+def show_employee_interface(username, main_window, ):
     global root
     global OptionTabs
 
@@ -95,8 +96,15 @@ def show_employee_interface(username, main_window):
     ingredients_interior.update_idletasks()
     ingredients_canvas.config(scrollregion=ingredients_canvas.bbox("all"))
 
-
-
+    def refresh_data(OrdersTable):
+        # Retrieve updated data from the database
+        cur.execute("SELECT Orders.OrderID, Users.Name AS CustomerName, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Users ON Orders.CustomerID = Users.UserID JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID;")
+        orderlist = cur.fetchall()
+        orderTable = [list(row) for row in orderlist]
+        OrdersTable.update_values(orderTable)
+        
+        update_produced(OrdersTable)
+    
     # Retrieve orders data from the database
     cur.execute("SELECT Orders.OrderID, Users.Name AS CustomerName, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Users ON Orders.CustomerID = Users.UserID JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID;")
     orderlist = cur.fetchall()
@@ -121,17 +129,45 @@ def show_employee_interface(username, main_window):
     OrdersCanvas.create_window((0, 0), window=OrdersInterior, anchor="nw")
 
     OrdersTable = CTkTable(
-        OrdersInterior,
-        width = 150,
-        height = 80,
-        row=len(orderTable),
-        column=len(orderTable[0]),
-        values=orderTable,
-        hover_color="#2D419C"
+    OrdersInterior,
+    width=150,
+    height=90,
+    row=len(orderTable),
+    column=len(orderTable[0]),
+    values=orderTable,
+    hover_color="#2D419C",
     )
+
     OrdersTable.pack(expand=True, fill="both")
+        
+    def update_produced(OrdersTable):
+        
+        try:
+            # Update the 'Produced' column in the database based on the selected Order ID
+            cur.execute("UPDATE Orders SET Produced = CASE WHEN Produced = 1 THEN 0 ELSE 1 END WHERE OrderID = ?", (selectOrderComplete.get(),))
+            conn.commit()  # Commit the changes to the database
+            print(selectOrderComplete.get())
+            
+            refresh_data(OrdersTable)
+            
+        except Exception as e:
+            # Handle any potential database errors
+            print(f"Error occurred: {e}")
+            # Rollback changes if there's an error
+            conn.rollback()
+    
+    cur.execute("SELECT OrderID FROM Orders")
+    selectOrderList = cur.fetchall()
+    orderIDs = [str(order[0]) for order in selectOrderList]
 
+    orderboxLabel = CTkLabel(OptionTabs.tab("Orders"), text="Select Order")
+    orderboxLabel.place(relx=0.441, rely=0.8)
 
+    selectOrderComplete = CTkComboBox(OptionTabs.tab("Orders"), values=orderIDs, state="readonly")
+    selectOrderComplete.pack(padx=5, pady=10)
+    
+    ConfirmOrderChangeButton = CTkButton(OptionTabs.tab("Orders"), text="Declare Order finished/Unfinished", command=refresh_data(OrdersTable))
+    ConfirmOrderChangeButton.pack(padx=5, pady=10)
 
 def show_user_interface(username, main_window):
     global root
@@ -147,9 +183,8 @@ def show_user_interface(username, main_window):
     )
     OptionTabs.pack(padx=20, pady=20)
     
-    OptionTabs.add("Menu")
+    OptionTabs.add("My orders")
     OptionTabs.add("Order")
-    
     
     logoutButton = CTkButton(
         root,
@@ -272,3 +307,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
