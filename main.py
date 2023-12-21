@@ -5,7 +5,7 @@ from tkinter import Scrollbar
 from customtkinter import *
 from CTkMessagebox import CTkMessagebox
 from CTkTable import *
-
+import time
 
 connected = False
 show_login_page = True
@@ -95,15 +95,6 @@ def show_employee_interface(username, main_window, ):
     # Configure the canvas to update scroll region when the table size changes
     ingredients_interior.update_idletasks()
     ingredients_canvas.config(scrollregion=ingredients_canvas.bbox("all"))
-
-    def refresh_data(OrdersTable):
-        # Retrieve updated data from the database
-        cur.execute("SELECT Orders.OrderID, Users.Name AS CustomerName, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Users ON Orders.CustomerID = Users.UserID JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID;")
-        orderlist = cur.fetchall()
-        orderTable = [list(row) for row in orderlist]
-        OrdersTable.update_values(orderTable)
-        
-        update_produced(OrdersTable)
     
     # Retrieve orders data from the database
     cur.execute("SELECT Orders.OrderID, Users.Name AS CustomerName, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Users ON Orders.CustomerID = Users.UserID JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID;")
@@ -140,22 +131,64 @@ def show_employee_interface(username, main_window, ):
 
     OrdersTable.pack(expand=True, fill="both")
         
-    def update_produced(OrdersTable):
-        
+    def update_produced():
+        buttonlabel = 0
         try:
-            # Update the 'Produced' column in the database based on the selected Order ID
-            cur.execute("UPDATE Orders SET Produced = CASE WHEN Produced = 1 THEN 0 ELSE 1 END WHERE OrderID = ?", (selectOrderComplete.get(),))
-            conn.commit()  # Commit the changes to the database
-            print(selectOrderComplete.get())
-            
-            refresh_data(OrdersTable)
-            
+            selected_order_id = selectOrderComplete.get()
+            cur.execute("UPDATE Orders SET Produced = CASE WHEN Produced = 1 THEN 0 ELSE 1 END WHERE OrderID = ?", (selected_order_id,))
+            conn.commit()
+            #print(selected_order_id)
+
+            # Refresh the entire table after database update
+            cur.execute("SELECT Orders.OrderID, Users.Name AS CustomerName, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Users ON Orders.CustomerID = Users.UserID JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID;")
+            orderlist = cur.fetchall()
+            orderTable = [list(row) for row in orderlist]
+            orderTable.insert(0, ["Order ID", "Customer Name", "Product", "Finished"])
+            ++buttonlabel
+
+            if buttonlabel < 2:
+                OrderChangeMessage = CTkLabel(OptionTabs.tab("Orders"), text="To see the differences youve made to the database,\n please reOpen the software.", text_color="red", font=('Arial', 10))
+                OrderChangeMessage.place(relx=0.01, rely=0.85)
+       
+            update_order_and_ingredients(selected_order_id)
+        
         except Exception as e:
-            # Handle any potential database errors
             print(f"Error occurred: {e}")
-            # Rollback changes if there's an error
             conn.rollback()
-    
+
+    def update_order_and_ingredients(selected_order_id):
+
+        # Check if the order is produced
+        cur.execute("SELECT Produced, BurgerID FROM Orders WHERE OrderID = ?", (selected_order_id,))
+        result = cur.fetchone()
+
+        if result and result[0] == 3:  # Assuming 1 represents 'Produced'
+            burger_id = result[1]
+
+            # Update the order status
+            cur.execute("UPDATE Orders SET Produced = 1 WHERE OrderID = ?", (selected_order_id,))
+
+            # Get the list of ingredient descriptions for the burger
+            cur.execute("SELECT Ingredients FROM Burgers WHERE BurgerID = ?", (burger_id,))
+            ingredients_list = cur.fetchone()
+
+            # Update the quantity for each ingredient in the list
+            if ingredients_list:
+                ingredient_descriptions = ingredients_list[0].split(', ')
+                for ingredient_description in ingredient_descriptions:
+                    cur.execute("UPDATE Ingredients SET Quantity = Quantity - 1 WHERE Ingredient = ?", (ingredient_description,))
+
+                # Commit the changes
+                conn.commit()
+                print(f"Order {selected_order_id} produced and ingredients updated.")
+            else:
+                print(f"Unable to retrieve ingredients for BurgerID {burger_id}.")
+        else:
+            print(f"Order {selected_order_id} not produced.")
+
+
+
+
     cur.execute("SELECT OrderID FROM Orders")
     selectOrderList = cur.fetchall()
     orderIDs = [str(order[0]) for order in selectOrderList]
@@ -166,7 +199,7 @@ def show_employee_interface(username, main_window, ):
     selectOrderComplete = CTkComboBox(OptionTabs.tab("Orders"), values=orderIDs, state="readonly")
     selectOrderComplete.pack(padx=5, pady=10)
     
-    ConfirmOrderChangeButton = CTkButton(OptionTabs.tab("Orders"), text="Declare Order finished/Unfinished", command=refresh_data(OrdersTable))
+    ConfirmOrderChangeButton = CTkButton(OptionTabs.tab("Orders"), text="Declare Order finished/Unfinished", command=update_produced)
     ConfirmOrderChangeButton.pack(padx=5, pady=10)
 
 def show_user_interface(username, main_window):
@@ -194,7 +227,6 @@ def show_user_interface(username, main_window):
         command=lambda: logout(main_window))
     logoutButton.place(relx=0.8, rely=0.035)
     
-
 
 def logout(main_window):
     global show_login_page, connected
