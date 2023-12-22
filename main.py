@@ -232,7 +232,7 @@ def show_employee_interface(username, main_window, ):
     ConfirmOrderChangeButton = CTkButton(OptionTabs.tab("Orders"), text="Declare Order finished/Unfinished", command=update_produced)
     ConfirmOrderChangeButton.pack(padx=5, pady=10)
 
-def place_order(username, burger_name, quantity, cur):
+def place_order(username, burger_name, quantity, cur, OrdersInterior):
     global current_user_id
     if current_user_id is not None:
         # Get the BurgerID based on the burger name
@@ -263,9 +263,32 @@ def place_order(username, burger_name, quantity, cur):
     else:
         CTkMessagebox(title="Error", message="User not authenticated. Please log in.", icon="cancel")
 
+def show_user_orders(username, OrdersInterior):
+    global current_user_id, MyorderTable, MyOrdersTable, Myorderlist
 
+    # Retrieve orders data for the current user from the database
+    cur.execute("SELECT Orders.OrderID, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID WHERE Orders.CustomerID = ?", (current_user_id,))
+    Myorderlist = cur.fetchall()
+    MyorderTable = [list(row) for row in Myorderlist]
 
-def show_user_interface(username, main_window ):
+    # Insert column names as the first row in the orderTable
+    column_names = ["Order ID", "Product", "Finished"]  # Replace with your column names
+    MyorderTable.insert(0, column_names)
+
+    # Create the orders table inside the frame
+    MyOrdersTable = CTkTable(
+        OrdersInterior,
+        width=200,
+        height=90,
+        row=len(MyorderTable),
+        column=len(MyorderTable[0]),
+        values=MyorderTable,
+        hover_color="#2D419C",
+    )
+
+    MyOrdersTable.pack(expand=True, fill="both")
+
+def show_user_interface(username, main_window):
     global root
     global OptionTabs
     global current_user_id
@@ -280,8 +303,26 @@ def show_user_interface(username, main_window ):
     )
     OptionTabs.pack(padx=20, pady=20)
 
-    OptionTabs.add("Menu")
+    OptionTabs.add("My Orders")
     OptionTabs.add("Order")
+    
+
+    # Fetch orders for the current user and display in the "Orders" tab
+    OrdersFrame = CTkFrame(OptionTabs.tab("My Orders"))
+    OrdersFrame.pack(expand=True, fill="both", padx=20, pady=20)
+
+    OrdersCanvas = CTkCanvas(OrdersFrame, bg="#212121")
+    OrdersCanvas.pack(side="left", fill="both", expand=True)
+
+    OrdersScrollbar = Scrollbar(OrdersFrame, orient="vertical", command=OrdersCanvas.yview)
+    OrdersScrollbar.pack(side="right", fill="y")
+    OrdersCanvas.configure(yscrollcommand=OrdersScrollbar.set)
+
+    OrdersInterior = CTkFrame(OrdersCanvas)
+    OrdersCanvas.create_window((0, 0), window=OrdersInterior, anchor="nw")
+
+    # Show the active user's orders in the "Orders" tab
+    show_user_orders(username, OrdersInterior)
 
     OrderLabel = CTkLabel(
         OptionTabs.tab("Order"),
@@ -322,7 +363,7 @@ def show_user_interface(username, main_window ):
         text="Order",
         corner_radius=25,
         width=30,
-        command=lambda: place_order(username, OrderCombo.get(), quantity_entry.get(), cur)
+        command=lambda: place_order(username, OrderCombo.get(), quantity_entry.get(), cur, OrdersInterior)
     )
     OrderButton.pack(pady=10)
 
@@ -448,4 +489,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
