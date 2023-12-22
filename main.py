@@ -13,12 +13,14 @@ conn = sqlite3.connect("DataBases/Foundation.db")
 cur = conn.cursor()
 
 def authenticate_user(username, password, cur):
-    global connected, show_login_page
+    global connected, show_login_page, current_user_id
     cur.execute("SELECT * FROM Users WHERE Name=? AND Password=?", (username, password))
     result = cur.fetchone()
     if result is not None:
         connected = True
         show_login_page = False
+        current_user_id = result[0]
+        return True, current_user_id
     return result is not None
 
 def get_employee_status(username, cur):
@@ -130,6 +132,7 @@ def show_employee_interface(username, main_window, ):
     )
 
     OrdersTable.pack(expand=True, fill="both")
+
     def update_produced():
 
             cur.execute("UPDATE Orders SET Produced = CASE WHEN Produced = 1 THEN 0 ELSE 1 END WHERE OrderID = ?", (selectOrderComplete.get(),))
@@ -229,23 +232,102 @@ def show_employee_interface(username, main_window, ):
     ConfirmOrderChangeButton = CTkButton(OptionTabs.tab("Orders"), text="Declare Order finished/Unfinished", command=update_produced)
     ConfirmOrderChangeButton.pack(padx=5, pady=10)
 
-def show_user_interface(username, main_window):
+def place_order(username, burger_name, quantity, cur):
+    global current_user_id
+    if current_user_id is not None:
+        # Get the BurgerID based on the burger name
+        cur.execute("SELECT BurgerID FROM Burgers WHERE Name=?", (burger_name,))
+        burger_id_result = cur.fetchone()
+
+        if burger_id_result:
+            burger_id = burger_id_result[0]
+
+            # Convert quantity to integer
+            try:
+                quantity = int(quantity)
+            except ValueError:
+                CTkMessagebox(title="Error", message="Invalid quantity. Please enter a valid number.", icon="cancel")
+                return
+
+            # Check if quantity is valid (between 1 and 15)
+            if 0 < quantity <= 15:
+                cur.execute("INSERT INTO Orders (CustomerID, BurgerID, Amount, Produced) VALUES (?, ?, ?, ?)",
+                            (current_user_id, burger_id, quantity, 0))
+                conn.commit()
+                CTkMessagebox(title="Success", message="Order placed successfully!", icon="check")
+            else:
+                CTkMessagebox(title="Error", message="Invalid quantity. Please enter a quantity between 1 and 15.",
+                              icon="cancel")
+        else:
+            CTkMessagebox(title="Error", message="Invalid burger selected. Please try again.", icon="cancel")
+    else:
+        CTkMessagebox(title="Error", message="User not authenticated. Please log in.", icon="cancel")
+
+
+
+def show_user_interface(username, main_window ):
     global root
     global OptionTabs
-    
+    global current_user_id
+
     for widget in main_window.winfo_children():
         widget.destroy()
-        
+
     OptionTabs = CTkTabview(
         root,
         width=720,
         height=680,
     )
     OptionTabs.pack(padx=20, pady=20)
-    
-    OptionTabs.add("My orders")
+
+    OptionTabs.add("Menu")
     OptionTabs.add("Order")
-    
+
+    OrderLabel = CTkLabel(
+        OptionTabs.tab("Order"),
+        text="Choose your burger",
+        font=("Helvetica",18)
+    )
+
+    OrderLabel.pack(pady=40)
+
+    cur.execute("SELECT Name FROM Burgers")
+    burger_results = cur.fetchall()
+    Burgers = [row[0] for row in burger_results]
+
+    OrderCombo = CTkComboBox(
+       OptionTabs.tab("Order"),
+       state="readonly",
+       values=Burgers
+    )
+
+    OrderCombo.pack(pady=20)
+
+    quantity_label = CTkLabel(
+        OptionTabs.tab("Order"),
+        text="Quantity:",
+        font=("Helvetica", 12)
+    )
+    quantity_label.pack(pady=5)
+
+    quantity_entry = CTkEntry(
+        OptionTabs.tab("Order"),
+        placeholder_text="Enter quantity",
+        width=150
+    )
+    quantity_entry.pack(pady=5)
+
+    OrderButton = CTkButton(
+        OptionTabs.tab("Order"),
+        text="Order",
+        corner_radius=25,
+        width=30,
+        command=lambda: place_order(username, OrderCombo.get(), quantity_entry.get(), cur)
+    )
+    OrderButton.pack(pady=10)
+
+
+
     logoutButton = CTkButton(
         root,
         text="Logout",
