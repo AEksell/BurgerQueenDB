@@ -1,17 +1,16 @@
 import sqlite3
-import tkinter as tk
-from tkinter import messagebox
-from tkinter import Scrollbar
 from customtkinter import *
 from CTkMessagebox import CTkMessagebox
 from CTkTable import *
 import time
 
+#Global variables for database connection and user authentication
 connected = False
 show_login_page = True
 conn = sqlite3.connect("DataBases/Foundation.db")
 cur = conn.cursor()
 
+#Function to authenticate a user based on provided username and password
 def authenticate_user(username, password, cur):
     global connected, show_login_page, current_user_id
     cur.execute("SELECT * FROM Users WHERE Name=? AND Password=?", (username, password))
@@ -23,11 +22,13 @@ def authenticate_user(username, password, cur):
         return True, current_user_id
     return result is not None
 
+#Function to check if a user is an employee
 def get_employee_status(username, cur):
     cur.execute("SELECT Employee FROM Users WHERE Name=?", (username,))
     result = cur.fetchone()
     return result[0] == 1 if result else False
 
+#Function to refresh data in the Ingredients table
 def Refresh_Ingredients_data(ingredients_table, ingredients_result):
     cur.execute("SELECT * FROM Ingredients")
     ingredients_result = cur.fetchall()
@@ -36,6 +37,19 @@ def Refresh_Ingredients_data(ingredients_table, ingredients_result):
     print(ingredients_data)
     ingredients_table.update_values(ingredients_data)
 
+#Function to retrieve and display order status
+def refreshMyOrders(MyOrdersTable, Myorderlist):
+    cur.execute("SELECT Orders.OrderID, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID WHERE Orders.CustomerID = ?", (current_user_id,))
+    Myorderlist = cur.fetchall()
+    MyorderTable =[list(row) for row in Myorderlist]
+    MyorderTable.insert(0, ["Order ID", "Product", "Finished"])
+
+    warninglabel = CTkLabel(OptionTabs.tab("My Orders"), text="Log back in to see new orders", text_color="red")
+    warninglabel.place(relx = 0.1, rely = 0.95)
+
+    MyOrdersTable.update_values(MyorderTable)
+
+#Function to display the employee interface
 def OrderStatus(orderlist, orderTable):
     cur.execute("SELECT * FROM Orders")
     orderlist = cur.fetchall()
@@ -43,7 +57,7 @@ def OrderStatus(orderlist, orderTable):
     orderTable = [list(row) for row in orderlist]
     print(orderTable)
 
-        
+#Function to place an order
 def show_employee_interface(username, main_window, ):
     global root
     global OptionTabs
@@ -70,17 +84,17 @@ def show_employee_interface(username, main_window, ):
     ingredients_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
     # Create a canvas to simulate a scrollable frame
-    ingredients_canvas = CTkCanvas(ingredients_frame)
+    ingredients_canvas = CTkCanvas(ingredients_frame, bg="black")
     ingredients_canvas.pack(side="left", fill="both", expand=True)
 
     # Add a scrollbar for the canvas
-    ingredients_scrollbar = Scrollbar(ingredients_frame, orient="vertical", command=ingredients_canvas.yview)
+    ingredients_scrollbar = CTkScrollbar(ingredients_frame, orientation="vertical", command=ingredients_canvas.yview)
     ingredients_scrollbar.pack(side="right", fill="y")
     ingredients_canvas.configure(yscrollcommand=ingredients_scrollbar.set)
 
     # Create a frame inside the canvas to hold the ingredients table
     ingredients_interior = CTkFrame(ingredients_canvas)
-    ingredients_canvas.create_window((0, 0), window=ingredients_interior, anchor="nw")
+    ingredients_canvas.create_window((0, 0), window=ingredients_interior, anchor="nw",)
 
     # Create the ingredients table inside the frame
     ingredients_table = CTkTable(
@@ -90,31 +104,35 @@ def show_employee_interface(username, main_window, ):
         row=len(ingredients_data),
         column=len(ingredients_data[0]),
         values=ingredients_data,
-        hover_color="#2D419C"
+        hover_color="#2D419C",
     )
     ingredients_table.pack(expand=True, fill="both")
+
 
     # Configure the canvas to update scroll region when the table size changes
     ingredients_interior.update_idletasks()
     ingredients_canvas.config(scrollregion=ingredients_canvas.bbox("all"))
     
+    refresh_button = CTkButton(OptionTabs.tab("Ingredients"), text="Refresh", command=lambda: Refresh_Ingredients_data(ingredients_table, ingredients_result))
+    refresh_button.pack()
+    
     # Retrieve orders data from the database
-    cur.execute("SELECT Orders.OrderID, Users.Name AS CustomerName, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Users ON Orders.CustomerID = Users.UserID JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID;")
+    cur.execute("SELECT Orders.OrderID, Users.Name AS CustomerName, Burgers.Name AS BurgerName, Orders.Amount, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Users ON Orders.CustomerID = Users.UserID JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID;")
     orderlist = cur.fetchall()
     orderTable = [list(row) for row in orderlist]
 
     # Insert column names as the first row in the orderTable
-    column_names = ["Order ID", "Customer Name", "Product", "Finished"]  # Replace with your column names
+    column_names = ["Order ID", "Customer Name", "Product", "Amount", "Finished"]  # Replace with your column names
     orderTable.insert(0, column_names)
 
-    # Make orders table GUI (SIMILAR TO INGREDIENTS TABLE CREATION)
+    # Make orders table GUI
     OrdersFrame = CTkFrame(OptionTabs.tab("Orders"))
     OrdersFrame.pack(expand=True, fill="both", padx=20, pady=20)
 
     OrdersCanvas = CTkCanvas(OrdersFrame, bg="#212121")
     OrdersCanvas.pack(side="left", fill="both", expand=True)
 
-    OrdersScrollbar = Scrollbar(OrdersFrame, orient="vertical", command=OrdersCanvas.yview)
+    OrdersScrollbar = CTkScrollbar(OrdersFrame, orientation="vertical", command=OrdersCanvas.yview)
     OrdersScrollbar.pack(side="right", fill="y")
     OrdersCanvas.configure(yscrollcommand=OrdersScrollbar.set)
 
@@ -123,7 +141,7 @@ def show_employee_interface(username, main_window, ):
 
     OrdersTable = CTkTable(
     OrdersInterior,
-    width=150,
+    width=115,
     height=90,
     row=len(orderTable),
     column=len(orderTable[0]),
@@ -131,85 +149,90 @@ def show_employee_interface(username, main_window, ):
     hover_color="#2D419C",
     )
 
+    
     OrdersTable.pack(expand=True, fill="both")
+    OrdersInterior.update_idletasks()
+    OrdersCanvas.configure(scrollregion=OrdersCanvas.bbox("all"))
 
+    Refresh_Ingredients_data(ingredients_table, ingredients_result)
+
+    #UPDATES THE DB TABLES OF BOTH INGREDIENSES AND ORDERS, ALSO SHOWS AND REFRESHES GUI IN ACTUAL PRGORAM
     def update_produced():
 
             cur.execute("UPDATE Orders SET Produced = CASE WHEN Produced = 1 THEN 0 ELSE 1 END WHERE OrderID = ?", (selectOrderComplete.get(),))
             conn.commit()
 
             # Refresh the entire table after database update
-            cur.execute("SELECT Orders.OrderID, Users.Name AS CustomerName, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Users ON Orders.CustomerID = Users.UserID JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID;")
+            cur.execute("SELECT Orders.OrderID, Users.Name AS CustomerName, Burgers.Name AS BurgerName, Orders.Amount, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Users ON Orders.CustomerID = Users.UserID JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID;")
             orderlist = cur.fetchall()
             orderTable = [list(row) for row in orderlist]
-            orderTable.insert(0, ["Order ID", "Customer Name", "Product", "Finished"])
+            orderTable.insert(0, ["Order ID", "Customer Name", "Product", "Amount", "Finished"])
             OrdersTable.update_values(orderTable)
+
+            cur.execute("SELECT * FROM Ingredients")
+            ingredients_result = cur.fetchall()
+            ingredients_data = [list(row) for row in ingredients_result]
+            ingredients_table.update_values(ingredients_data)
+            Refresh_Ingredients_data(ingredients_table, ingredients_result)
+            
 
             produced_state = check_produced_status(selectOrderComplete.get())
             update_ingredients(produced_state)
 
+    #CHECKS THE INT VALUE OF PRODUCED TO DETERMINE IF ITS 1 OR 0. ALSO FAILSEARCHES IN CASE OF ERROR IN LISTING ORDER ID
     def check_produced_status(order_id):
         try:
             cur.execute("SELECT Produced FROM Orders WHERE OrderID = ?", (order_id,))
-            produced_status = cur.fetchone()  # Fetch the value of Produced column
+            produced_status = cur.fetchone()
 
-            if produced_status == 1:
-                produced_variable = True
+            if produced_status:
+                produced_variable = True if produced_status[0] == 1 else False
+                print(f"Produced status for Order {order_id}: {produced_variable}")
+                return produced_variable
             else:
-                produced_variable = False
-
-            return produced_variable
+                print(f"No produced status found for Order {order_id}")
+                return False
 
         except Exception as e:
             print(f"Error occurred: {e}")
             conn.rollback()
 
+    
+    #FUNCTION SPECIFICALLY DESIGNED TO CHANGE INGREDIENTS VALUES WITH HELP OF TWO PRIOR FUNCTIONS TO ENSURE THE DB IS UPDATED ACCORDINGLY
     def update_ingredients(produced):
         try:
             order_id = selectOrderComplete.get()
 
-            cur.execute("SELECT BurgerID FROM Orders WHERE OrderID = ?", (order_id,))
-            burger_result = cur.fetchone()
+            # Retrieve the order's details including the amount
+            cur.execute("SELECT BurgerID, Amount FROM Orders WHERE OrderID = ?", (order_id,))
+            order_details = cur.fetchone()
 
-            if burger_result is not None:
-                burger_id = burger_result[0]
+            if order_details:
+                burger_id, amount = order_details
 
+                # Fetch the ingredients required for the burger
                 cur.execute("SELECT Ingredients FROM Burgers WHERE BurgerID = ?", (burger_id,))
                 ingredients_result = cur.fetchone()
 
-                if ingredients_result is not None:
+                if ingredients_result:
                     ingredients_str = ingredients_result[0]
                     required_ingredients = [ingredient.strip() for ingredient in ingredients_str.split(',')]
 
-                    print(f"Ingredients found for Order {order_id}: {required_ingredients}")
-
-                    # Fetch quantities for ingredients
-                    ingredient_quantities = []
+                    # Update quantities for each ingredient
                     for ingredient in required_ingredients:
                         cur.execute("SELECT Quantity FROM Ingredients WHERE LOWER(Ingredient) = LOWER(?)", (ingredient,))
                         quantity_result = cur.fetchone()
 
-                        if quantity_result is not None:
-                            ingredient_quantities.append((ingredient, quantity_result[0]))
-                        else:
-                            print(f"No quantity found for {ingredient}")
+                        if quantity_result:
+                            quantity = quantity_result[0]
+                            updated_quantity = quantity - amount if produced else quantity + amount
 
-                    print(f"Ingredients and quantities found for Order {order_id}: {ingredient_quantities}")
+                            # Update the quantity in the database
+                            cur.execute("UPDATE Ingredients SET Quantity = ? WHERE LOWER(Ingredient) = LOWER(?)", (updated_quantity, ingredient,))
+                            conn.commit()
+                            print(f"Updated quantity for {ingredient} based on order amount: {amount}")
 
-                    # Update quantities based on the 'produced' flag
-                    for ingredient, quantity in ingredient_quantities:
-                        if produced:
-                            updated_quantity = quantity - 1
-                        else:
-                            # Revert the quantity back to its original state
-                            updated_quantity = quantity + 1
-
-                        print(f"Updating {ingredient} from {quantity} to {updated_quantity}")
-                        cur.execute("UPDATE Ingredients SET Quantity = ? WHERE LOWER(Ingredient) = LOWER(?)", (updated_quantity, ingredient,))
-                        print(f"Updated quantity for {ingredient}")
-
-                    conn.commit()
-                    print(f"Order {order_id} {'produced' if produced else 'not produced'} and ingredients updated.")
+                    print(f"Ingredients updated for Order {order_id} based on produced flag: {produced}")
                 else:
                     print("No ingredients found for the burger.")
             else:
@@ -219,6 +242,7 @@ def show_employee_interface(username, main_window, ):
             print(f"Error occurred: {e}")
             conn.rollback()
 
+    #MAKES THE REMAINING WIDGETS FOR ORDERS THAT USE THE FUNCTIONS ABOVE
     cur.execute("SELECT OrderID FROM Orders")
     selectOrderList = cur.fetchall()
     orderIDs = [str(order[0]) for order in selectOrderList]
@@ -232,6 +256,7 @@ def show_employee_interface(username, main_window, ):
     ConfirmOrderChangeButton = CTkButton(OptionTabs.tab("Orders"), text="Declare Order finished/Unfinished", command=update_produced)
     ConfirmOrderChangeButton.pack(padx=5, pady=10)
 
+#Function to place an order
 def place_order(username, burger_name, quantity, cur, OrdersInterior):
     global current_user_id
     if current_user_id is not None:
@@ -254,6 +279,7 @@ def place_order(username, burger_name, quantity, cur, OrdersInterior):
                 cur.execute("INSERT INTO Orders (CustomerID, BurgerID, Amount, Produced) VALUES (?, ?, ?, ?)",
                             (current_user_id, burger_id, quantity, 0))
                 conn.commit()
+                OptionTabs.set("My Orders")
                 CTkMessagebox(title="Success", message="Order placed successfully!", icon="check")
             else:
                 CTkMessagebox(title="Error", message="Invalid quantity. Please enter a quantity between 1 and 15.",
@@ -263,10 +289,41 @@ def place_order(username, burger_name, quantity, cur, OrdersInterior):
     else:
         CTkMessagebox(title="Error", message="User not authenticated. Please log in.", icon="cancel")
 
-def show_user_orders(username, OrdersInterior):
-    global current_user_id, MyorderTable, MyOrdersTable, Myorderlist
+#Function to display the user interface
+def show_user_interface(username, main_window ):
+    global root
+    global OptionTabs
+    global current_user_id
 
-    # Retrieve orders data for the current user from the database
+    for widget in main_window.winfo_children():
+        widget.destroy()
+
+    OptionTabs = CTkTabview(
+        root,
+        width=720,
+        height=680,
+    )
+    OptionTabs.pack(padx=20, pady=20)
+
+    OptionTabs.add("My Orders")
+    OptionTabs.add("Order")
+
+    # Fetch orders for the current user and display in the "Orders" tab
+    OrdersFrame = CTkFrame(OptionTabs.tab("My Orders"))
+    OrdersFrame.pack(expand=True, fill="both", padx=20, pady=20)
+
+    OrdersCanvas = CTkCanvas(OrdersFrame, bg="#212121")
+    OrdersCanvas.pack(side="left", fill="both", expand=True)
+
+    OrdersScrollbar = CTkScrollbar(OrdersFrame, orientation="vertical", command=OrdersCanvas.yview)
+    OrdersScrollbar.pack(side="right", fill="y")
+    OrdersCanvas.configure(yscrollcommand=OrdersScrollbar.set)
+
+    OrdersInterior = CTkFrame(OrdersCanvas)
+    OrdersCanvas.create_window((0, 0), window=OrdersInterior, anchor="nw")
+
+    # Show the active user's orders in the "Orders" tab
+        # Retrieve orders data for the current user from the database
     cur.execute("SELECT Orders.OrderID, Burgers.Name AS BurgerName, CASE Orders.Produced WHEN 1 THEN 'Yes' ELSE 'No' END AS Produced FROM Orders JOIN Burgers ON Orders.BurgerID = Burgers.BurgerID WHERE Orders.CustomerID = ?", (current_user_id,))
     Myorderlist = cur.fetchall()
     MyorderTable = [list(row) for row in Myorderlist]
@@ -285,45 +342,16 @@ def show_user_orders(username, OrdersInterior):
         values=MyorderTable,
         hover_color="#2D419C",
     )
-
     MyOrdersTable.pack(expand=True, fill="both")
 
-def show_user_interface(username, main_window):
-    global root
-    global OptionTabs
-    global current_user_id
+    OrdersInterior.update_idletasks()
+    OrdersCanvas.config(scrollregion=OrdersCanvas.bbox("all"))
 
-    for widget in main_window.winfo_children():
-        widget.destroy()
+    #SAME TYPE OF REFRESH BUTTON FOR MY ORDERS TAB SO YOU DONT HAVE TO REOPEN THE SOFTWARE
+    myOrderRefreshButton = CTkButton(OptionTabs.tab("My Orders"), text="reLoad your orders", command=lambda: refreshMyOrders(MyOrdersTable, Myorderlist))
+    myOrderRefreshButton.pack()
 
-    OptionTabs = CTkTabview(
-        root,
-        width=720,
-        height=680,
-    )
-    OptionTabs.pack(padx=20, pady=20)
-
-    OptionTabs.add("My Orders")
-    OptionTabs.add("Order")
-    
-
-    # Fetch orders for the current user and display in the "Orders" tab
-    OrdersFrame = CTkFrame(OptionTabs.tab("My Orders"))
-    OrdersFrame.pack(expand=True, fill="both", padx=20, pady=20)
-
-    OrdersCanvas = CTkCanvas(OrdersFrame, bg="#212121")
-    OrdersCanvas.pack(side="left", fill="both", expand=True)
-
-    OrdersScrollbar = Scrollbar(OrdersFrame, orient="vertical", command=OrdersCanvas.yview)
-    OrdersScrollbar.pack(side="right", fill="y")
-    OrdersCanvas.configure(yscrollcommand=OrdersScrollbar.set)
-
-    OrdersInterior = CTkFrame(OrdersCanvas)
-    OrdersCanvas.create_window((0, 0), window=OrdersInterior, anchor="nw")
-
-    # Show the active user's orders in the "Orders" tab
-    show_user_orders(username, OrdersInterior)
-
+    #ORDER TAB WIDGETS
     OrderLabel = CTkLabel(
         OptionTabs.tab("Order"),
         text="Choose your burger",
@@ -368,7 +396,7 @@ def show_user_interface(username, main_window):
     OrderButton.pack(pady=10)
 
 
-
+    #LETS U GO BACK TO LOGIN PAGE
     logoutButton = CTkButton(
         root,
         text="Logout",
@@ -377,7 +405,7 @@ def show_user_interface(username, main_window):
         command=lambda: logout(main_window))
     logoutButton.place(relx=0.8, rely=0.035)
     
-
+#Function to handle user logout
 def logout(main_window):
     global show_login_page, connected
     for widget in main_window.winfo_children():
@@ -386,6 +414,7 @@ def logout(main_window):
     connected = False  
     LoginPage()
 
+#Function to handle login page display
 def LoginPage():
     global show_login_page
     conn = sqlite3.connect("DataBases/Foundation.db")
@@ -406,6 +435,7 @@ def LoginPage():
         passwordEntry = CTkEntry(loginTabs.tab("login"), placeholder_text="Password. . .", show="*", width=150)
         passwordEntry.place(relx=0.4, rely=0.3)
 
+        #Functions to easier enter program after etering password
         def on_enter_key(event):
             login(usernameEntry, passwordEntry, cur, root)
 
@@ -428,7 +458,7 @@ def LoginPage():
         signInButton = CTkButton(loginTabs.tab("sign up"), text="sign up", command=lambda: signup(signup_usernameEntry, signup_passwordEntry, cur, conn))
         signInButton.place(relx=0.4, rely=0.6)
 
-        
+#Function to handle user login        
 def login(usernameEntry, passwordEntry, cur, root):
     username = usernameEntry.get()
     password = passwordEntry.get()
@@ -442,6 +472,7 @@ def login(usernameEntry, passwordEntry, cur, root):
     else:
         CTkMessagebox(title="Error", message="Invalid credentials. Please try again.", icon="cancel")
 
+#Function to handle user signup
 def signup(signup_usernameEntry, signup_passwordEntry, cur, conn):
     global connected, show_login_page
     is_employee = 0
@@ -460,7 +491,7 @@ def signup(signup_usernameEntry, signup_passwordEntry, cur, conn):
         connected = True
         show_login_page = False
 
-
+#Main function to initialize the GUI and start the application
 def main():
     global root
     conn = sqlite3.connect("DataBases/Foundation.db")
@@ -470,6 +501,7 @@ def main():
     root.geometry("720x680")
     root.minsize(420, 380)
     root.title("BurgerQueen")
+    root.resizable(False, False)
     
     
     set_default_color_theme("dark-blue")
@@ -487,5 +519,6 @@ def main():
     main_loop()
     root.mainloop()
 
+#Entry point of the script
 if __name__ == "__main__":
     main()
